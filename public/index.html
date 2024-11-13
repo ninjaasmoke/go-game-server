@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body>
+    <h1>Chat Room</h1>
+
+    <h2>Create a Room</h2>
+    <button onclick="createRoom()">Create Room</button>
+    <p id="createResult"></p>
+
+    <h2>Join a Room</h2>
+    <input type="text" id="roomId" placeholder="Enter Room ID">
+    <button onclick="joinRoom()">Join Room</button>
+    <button >Leave Room</button>
+
+    <div id="chatContainer" style="display: none;">
+        <h2>Chat</h2>
+        <div id="messages"></div>
+        <input type="text" id="messageInput" placeholder="Type your message">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        var ws;
+
+        const uuid = Math.random().toString(36).substring(2);
+
+        function createRoom() {
+            $.ajax({
+                url: "/create",
+                type: "GET",
+                success: function (response) {
+                    $("#createResult").text("Room created successfully. Room ID: " + response);
+                    console.log(response);
+                },
+                error: function (xhr, status, error) {
+                    $("#createResult").text("Error creating room: " + error);
+                }
+            });
+        }
+
+        function joinRoom() {
+            var roomId = $("#roomId").val();
+            initializeWebSocket(roomId);
+        }
+
+        function initializeWebSocket(roomId) {
+            var wsURL = "ws://localhost:8080/join?room=" + roomId + "&uuid=" + uuid;
+            ws = new WebSocket(wsURL);
+
+            ws.onmessage = function (event) {
+                var message = JSON.parse(event.data);
+                $("#messages").append("<div><strong>" + message.from + ": </strong>" + message.content + "</div>");
+            };
+
+            ws.onclose = function (event) {
+                $("#chatContainer").hide();
+                $("#messages").empty();
+                try {
+
+                    var message = JSON.parse(event.data);
+                    alert("Connection closed: " + message.content);
+                } catch (e) {
+                    console.log(e);
+                    alert("Connection closed");
+                }
+                ws.close();
+            };
+
+            $("#chatContainer").show();
+        }
+
+        function sendMessage() {
+            var message = $("#messageInput").val();
+            var roomId = $("#roomId").val();
+            var data = {
+                from: uuid,
+                content: message,
+                roomID: roomId
+            };
+            ws.send(JSON.stringify(data));
+            $("#messageInput").val("");
+        }
+
+        function leaveRoom() {
+            $.ajax({
+                url: "/leave?room=" + $("#roomId").val() + "&uuid=" + uuid,
+                type: "GET",
+                success: function (response) {
+                    console.log(response);
+                    $("#chatContainer").hide();
+                    $("#messages").empty();
+                    ws.close();
+                },
+                error: function (xhr, status, error) {
+                    console.log(error);
+                    alert("Error leaving room: " + error);
+                }
+            })
+        }
+    </script>
+</body>
+
+</html>
